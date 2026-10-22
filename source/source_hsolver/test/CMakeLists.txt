@@ -2,6 +2,18 @@ abacus_disable_feature_definitions(__CUDA)
 abacus_disable_feature_definitions(__ROCM)
 abacus_disable_feature_definitions(__EXX)
 
+# A serial PW eigensolver reproducer; no LCAO or MPI initialization is needed.
+if(NOT ENABLE_MPI)
+  AddTest(
+    TARGET MODULE_HSOLVER_dav_subspace_residual
+    LIBS parameter base device container
+    SOURCES test_diago_dav_subspace.cpp ../diago_dav_subspace.cpp
+  )
+  set_tests_properties(MODULE_HSOLVER_dav_subspace_residual PROPERTIES
+    TIMEOUT 30 LABELS "hsolver;serial;diagnostic"
+    ENVIRONMENT "OMP_NUM_THREADS=1;MKL_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1")
+endif()
+
 set(TD_LINEAR_TEST_SOURCES
   ../hsolver_linear.cpp
   ../linear_bicgstab.cpp
