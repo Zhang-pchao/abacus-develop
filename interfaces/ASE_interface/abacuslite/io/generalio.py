@@ -13,6 +13,7 @@ from ase.atoms import Atoms
 from ase.build import bulk
 from ase.constraints import FixAtoms, FixCartesian
 from ase.data import chemical_symbols, atomic_masses
+from abacuslite.units import BOHR_TO_ANGSTROM
 ATOM_MASS = dict(zip(chemical_symbols, atomic_masses.tolist()))
 
 def load_pseudo(pseudo_dir: str) -> Dict[str, str]:
@@ -232,10 +233,6 @@ def write_stru(stru: Atoms,
     str
         The path to the written STRU file.
     '''
-    from ase.units import (
-        Bohr as __BOHR__, 
-        Angstrom as __ANGSTROM__
-    )
     assert isinstance(stru, Atoms)
     pp_file = pp_file or {} # can be None, for those non-ESolver_KS cases
 
@@ -258,7 +255,7 @@ def write_stru(stru: Atoms,
     stru_dict = {
         'coord_type': 'Cartesian',
         'lat': {
-            'const': __ANGSTROM__ / __BOHR__, 
+            'const': 1.0 / BOHR_TO_ANGSTROM,
             'vec': np.array(stru.get_cell()).tolist()
         },
         'species': [
@@ -679,7 +676,6 @@ class TestAbacusCalculatorIOUtil(unittest.TestCase):
             self.assertEqual((workdir / 'STRU.bak.note').read_text(), 'note')
 
     def test_stru_io(self):
-        from ase.units import Bohr, Angstrom
         nacl = bulk('NaCl', 'rocksalt', a=5.64)
         write_stru(
             nacl, 
@@ -706,7 +702,7 @@ class TestAbacusCalculatorIOUtil(unittest.TestCase):
                 self.assertIn(k, s)
         self.assertEqual(stru_['coord_type'], 'Cartesian')
 
-        self.assertEqual(stru_['lat']['const'], Angstrom / Bohr)
+        self.assertEqual(stru_['lat']['const'], 1.0 / BOHR_TO_ANGSTROM)
         self.assertTrue(np.allclose(stru_['lat']['vec'], np.array(nacl.get_cell())))
         self.assertIsInstance(stru_['species'], list)
 

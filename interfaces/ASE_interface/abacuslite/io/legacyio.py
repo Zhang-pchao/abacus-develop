@@ -11,8 +11,9 @@ from ase.calculators.singlepoint import (
     SinglePointKPoint,
     SinglePointDFTCalculator
 )
-from ase.units import Ry, eV, GPa, bar
+from ase.units import Ry, eV
 from ase.stress import full_3x3_to_voigt_6_stress
+from abacuslite.units import KBAR_TO_EV_PER_ANGSTROM3
 # from ase.utils import reader
 
 __all__ = ['read_kpoints_from_running_log', 
@@ -567,8 +568,8 @@ def read_stress_from_running_log(src: str | Path | List[str]) \
         # truncate the stress table and append
         stress_raw = raw[istart+ith+1+itb:istart+ith+1+itb+jtb]
         stress = np.array([list(map(float, l.split())) for l in stress_raw]).reshape(3, 3)
-        # unit: kbar -> GPa
-        stresses.append(-0.1 * stress * GPa)
+        # Match the native eV/Angstrom energy and force convention.
+        stresses.append(-stress * KBAR_TO_EV_PER_ANGSTROM3)
 
         # update the istart
         istart += ith + itb + jtb + 1
@@ -1132,7 +1133,7 @@ class TestLegacyIO(unittest.TestCase):
             [-27.6053387674,   7.6367729837,   0.8540980603],
         ]).reshape(-1, 3, 3)
         for s, sref in zip(stress, reference):
-            self.assertTrue(np.allclose(s, -0.1 * GPa * sref))
+            self.assertTrue(np.allclose(s, -KBAR_TO_EV_PER_ANGSTROM3 * sref))
 
     def test_read_energies_from_running_log(self):
         fn = self.testfiles / 'lcao-symm0-nspin2-multik-cellrelax_'

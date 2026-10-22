@@ -51,6 +51,12 @@ from ase.atoms import Atoms
 from ase.dft.kpoints import BandPath
 from ase.io import read
 
+from abacuslite.units import (
+    ASE_TO_ABACUS_ENERGY,
+    ASE_TO_ABACUS_FORCE,
+    ASE_TO_ABACUS_LENGTH,
+)
+
 from abacuslite.io.generalio import (
     file_safe_backup,
     read_input,
@@ -718,7 +724,13 @@ class AbacusSocketIO(SocketIOCalculator):
                                       unixsocket=self._unixsocket)
             self.server.proc = proc
 
-        raw_results = self.server.calculate(socket_atoms)
+        # The STRU writer and fixed-cell checks use the user's Angstrom cell.
+        # Only ASE's socket serialization sees this scaled copy: its Bohr
+        # conversion must produce the same native coordinates as STRU.
+        wire_atoms = socket_atoms.copy()
+        wire_atoms.positions[:] *= ASE_TO_ABACUS_LENGTH
+        wire_atoms.cell[:] *= ASE_TO_ABACUS_LENGTH
+        raw_results = self.server.calculate(wire_atoms)
         if not isinstance(raw_results, dict):
             raise ValueError('ABACUS socket server returned a non-mapping result')
         results = dict(raw_results)
@@ -736,10 +748,11 @@ class AbacusSocketIO(SocketIOCalculator):
 
         if 'energy' not in present or 'energy' not in results:
             raise ValueError('ABACUS socket response did not provide energy')
-        energy = float(results['energy'])
+        energy = float(results['energy']) * ASE_TO_ABACUS_ENERGY
         if not np.isfinite(energy):
             raise ValueError('ABACUS socket energy is not finite')
-        free_energy = float(results.get('free_energy', energy))
+        free_energy = float(results.get('free_energy', results['energy']))
+        free_energy *= ASE_TO_ABACUS_ENERGY
         if not np.isfinite(free_energy):
             raise ValueError('ABACUS socket free energy is not finite')
         current = {'energy': energy, 'free_energy': free_energy}
@@ -749,6 +762,7 @@ class AbacusSocketIO(SocketIOCalculator):
                 raise ValueError(
                     'ABACUS socket metadata advertises forces, but wire response omitted them')
             forces = np.asarray(results['forces'], dtype=np.float64)
+            forces = forces * ASE_TO_ABACUS_FORCE
             expected_shape = (len(socket_atoms), 3)
             if forces.shape != expected_shape or not np.all(np.isfinite(forces)):
                 raise ValueError('ABACUS socket forces have invalid shape or values')
@@ -763,6 +777,7 @@ class AbacusSocketIO(SocketIOCalculator):
                 raise PropertyNotImplementedError(
                     'ABACUS socket stress requires a periodic rank-3 cell')
             virial = np.asarray(virial, dtype=np.float64)
+            virial = virial * ASE_TO_ABACUS_ENERGY
             if virial.shape != (3, 3) or not np.all(np.isfinite(virial)):
                 raise ValueError('ABACUS socket virial is not a finite 3x3 matrix')
             vol = float(atoms.get_volume())

@@ -39,6 +39,27 @@ Please refer to the example scripts in the `examples` folder. Recommended learni
 
 The regular `Abacus` calculator runs one ABACUS calculation for each ASE property evaluation. ASE controls the relaxation, molecular-dynamics, and other workflow steps. The socket calculator reuses one ABACUS process for position updates, while the cell and electronic-structure settings remain fixed for that calculator instance.
 
+## Units
+
+ASE inputs use Angstrom, and calculator results use eV, eV/Angstrom, and
+eV/Angstrom cubed (ASE stress sign). The interface uses the native constants in
+source/source_base/constants.h (BOHR_TO_A and Ry_to_eV) so file and socket
+calculations refer to the same geometry and energy convention. These constants
+differ slightly from ASE's CODATA values.
+
+AbacusSocketIO leaves the native i-PI protocol in atomic units. It rescales an
+internal copy before ASE serializes coordinates and the cell, then normalizes
+ASE-decoded energy, forces, and virial. The user's atoms and the initial STRU
+retain their physical Angstrom values. Stress uses the original cell volume.
+The file readers invert ABACUS's own kbar conversion before converting to this
+same energy-per-volume convention, including the native joule/eV difference.
+read_stru returns raw STRU fields; running-log and MD-dump trajectory readers
+already consume the lattice constant printed in Angstrom.
+
+Focused boundary tests (no ABACUS executable needed):
+
+    python -m unittest discover -s tests -p 'test_units.py' -v
+
 ## Authors
 
 - Yuyang Ji

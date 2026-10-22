@@ -11,8 +11,8 @@ from ase.calculators.singlepoint import (
     SinglePointKPoint,
     SinglePointDFTCalculator
 )
-from ase.units import GPa
 from ase.stress import full_3x3_to_voigt_6_stress
+from abacuslite.units import KBAR_TO_EV_PER_ANGSTROM3
 
 # some output formats are not updated,
 # for these cases, we import from the legacyio module
@@ -352,8 +352,8 @@ def read_stress_from_running_log(src: str | Path | List[str]) \
         # truncate the stress table and append
         stress_raw = raw[istart+ith+1+itb:istart+ith+1+itb+jtb]
         stress = np.array([list(map(float, l.split())) for l in stress_raw]).reshape(3, 3)
-        # unit: kbar -> GPa
-        stresses.append(-0.1 * stress * GPa)
+        # Match the native eV/Angstrom energy and force convention.
+        stresses.append(-stress * KBAR_TO_EV_PER_ANGSTROM3)
 
         # update the istart
         istart += ith + itb + jtb + 1
@@ -667,7 +667,7 @@ class TestLatestIO(unittest.TestCase):
             ]),
         ]
         for s, ref in zip(stresses, reference):
-            self.assertTrue(np.allclose(s, -0.1 * GPa * ref))
+            self.assertTrue(np.allclose(s, -KBAR_TO_EV_PER_ANGSTROM3 * ref))
 
     def test_read_abacus_out_string(self):
         fn = self.testfiles / 'pw-symm0-nspin4-gamma-md'

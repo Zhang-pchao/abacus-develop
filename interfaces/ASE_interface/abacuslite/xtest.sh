@@ -8,3 +8,5 @@ python3 ./io/legacyio.py -v
 python3 ./io/latestio.py -v
 python3 ./utils/ksampling.py -v
 
+
+python3 -m unittest discover -s ../tests -p 'test_units.py' -v
