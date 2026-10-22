@@ -17,6 +17,10 @@
 #include "source_hsolver/diag_hs_para.h"
 #include "source_hsolver/kernels/bpcg_kernel_op.h" // normalize_op, precondition_op, apply_eigenvalues_op
 
+#include <iomanip>
+#include <limits>
+#include <sstream>
+#include <string>
 #include <vector>
 
 #ifdef __MPI
@@ -424,6 +428,20 @@ void Diago_DavSubspace<T, Device>::cal_grad(const HSOperator<T, Device>& op,
                                     (*eigenvalue_iter).data());
     }
 
+    // Eigenvalues are packed into residual order above; unconv retains the original band indices.
+    const auto small_residual_message = [&](const int residual_index, const Real norm)
+    {
+        const int band_index = unconv[residual_index];
+        const Real eigenvalue = (*eigenvalue_iter)[residual_index];
+        std::ostringstream message;
+        message << std::scientific << std::setprecision(std::numeric_limits<Real>::max_digits10)
+                << "small preconditioned residual: L2_norm=" << norm << " <= threshold=" << 1.0e-12
+                << "; band_index=" << band_index << " (zero-based)"
+                << "; residual_index=" << residual_index << "; nbase=" << nbase
+                << "; eigenvalue=" << eigenvalue << "; diagonalization_threshold=" << this->diag_thr;
+        return message.str();
+    };
+
     // Normalize section
 #if defined(__CUDA) || defined(__ROCM)
     if (this->device == base_device::GpuDevice)
@@ -438,7 +456,7 @@ void Diago_DavSubspace<T, Device>::cal_grad(const HSOperator<T, Device>& op,
                                 notconv,
                                 psi_norm);
 
-        // Check for zero norms (GPU path: copy norms from device to host)
+        // Check for small preconditioned residuals (GPU path: copy norms to host)
         Real* psi_norm_host = nullptr;
         resmem_real_h_op()(psi_norm_host, notconv);
         syncmem_var_d2h_op()(psi_norm_host, psi_norm, notconv);
@@ -446,13 +464,11 @@ void Diago_DavSubspace<T, Device>::cal_grad(const HSOperator<T, Device>& op,
         {
             if (psi_norm_host[i] <= 1.0e-12)
             {
-                std::cout << "Diago_DavSubspace::cal_grad: psi_norm <= 0 for band " << i << std::endl;
-                std::cout << "This may be due to npwx < nbands: the number of plane waves is less than" << std::endl;
-                std::cout << "the number of bands, leading to a rank-deficient problem." << std::endl;
-                std::cout << "Please increase ecutwfc or reduce nbands." << std::endl;
+                const std::string message = small_residual_message(i, psi_norm_host[i]);
+                std::cout << "Diago_DavSubspace::cal_grad: " << message << std::endl;
                 delmem_real_h_op()(psi_norm_host);
                 delmem_real_op()(psi_norm);
-                ModuleBase::WARNING_QUIT("cal_grad", "psi_norm <= 0");
+                ModuleBase::WARNING_QUIT("cal_grad", message);
             }
         }
         delmem_real_h_op()(psi_norm_host);
@@ -471,17 +487,15 @@ void Diago_DavSubspace<T, Device>::cal_grad(const HSOperator<T, Device>& op,
                                 notconv,
                                 psi_norm);
 
-        // Check for zero norms (CPU path)
+        // Check for small preconditioned residuals (CPU path)
         for (int i = 0; i < notconv; i++)
         {
             if (psi_norm[i] <= 1.0e-12)
             {
-                std::cout << "Diago_DavSubspace::cal_grad: psi_norm <= 0 for band " << i << std::endl;
-                std::cout << "This may be due to npwx < nbands: the number of plane waves is less than" << std::endl;
-                std::cout << "the number of bands, leading to a rank-deficient problem." << std::endl;
-                std::cout << "Please increase ecutwfc or reduce nbands." << std::endl;
+                const std::string message = small_residual_message(i, psi_norm[i]);
+                std::cout << "Diago_DavSubspace::cal_grad: " << message << std::endl;
                 delmem_real_h_op()(psi_norm);
-                ModuleBase::WARNING_QUIT("cal_grad", "psi_norm <= 0");
+                ModuleBase::WARNING_QUIT("cal_grad", message);
             }
         }
         delmem_real_h_op()(psi_norm);
