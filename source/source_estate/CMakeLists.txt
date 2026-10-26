@@ -13,6 +13,7 @@ list(APPEND objects
     makov_payne.cpp
     charge_moments.cpp
     pcc_0d.cpp
+    gaussian_charge_field.cpp
     pcc_2d.cpp
     module_pot/gatefield.cpp
     module_pot/efield.cpp
@@ -21,6 +22,7 @@ list(APPEND objects
     module_pot/pot_xc.cpp
     module_pot/pot_local.cpp
     module_pot/pot_pcc.cpp
+    module_pot/pot_gaussian_field.cpp
     module_pot/pot_sccs.cpp
     module_pot/potential_new.cpp
     module_pot/potential_types.cpp
@@ -94,6 +96,18 @@ if(ENABLE_COVERAGE)
 endif()
 
 if(BUILD_TESTING)
+  AddTest(
+    TARGET MODULE_ESTATE_gaussian_charge_field
+    LIBS base device
+    SOURCES test/test_gaussian_charge_field.cpp gaussian_charge_field.cpp
+  )
+  if(NOT ENABLE_MPI)
+    AddTest(
+      TARGET MODULE_ESTATE_elecstate_fp_energy
+      LIBS parameter base device
+      SOURCES test/elecstate_fp_energy_test.cpp fp_energy.cpp
+    )
+  endif()
   if(ENABLE_MPI)
     add_subdirectory(test)
     add_subdirectory(module_charge/unittests)

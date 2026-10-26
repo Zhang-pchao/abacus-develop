@@ -281,8 +281,10 @@ OBJS_ELECSTAT=elecstate.o\
     makov_payne.o\
     charge_moments.o\
     pcc_0d.o\
+    gaussian_charge_field.o\
     pcc_2d.o\
     pot_pcc.o\
+    pot_gaussian_field.o\
     pot_sccs.o\
     elecstate_op.o\
     efield.o\

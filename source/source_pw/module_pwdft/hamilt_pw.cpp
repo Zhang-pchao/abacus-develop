@@ -98,6 +98,10 @@ HamiltPW<T, Device>::HamiltPW(elecstate::Potential* pot_in,
             elecstate::PotPcc::validate_kpoints(pkv->kvec_d, count, input.pcc_2d_axis);
             pot_register_in.push_back("pcc_2d");
         }
+        if (input.gaussian_charge_file != "none")
+        {
+            pot_register_in.push_back("gaussian_field");
+        }
         if (input.efield_flag)
         {
             pot_register_in.push_back("efield");

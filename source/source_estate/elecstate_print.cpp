@@ -298,6 +298,12 @@ void print_etot(const Magnetism& magnet,
             energies_Ry.push_back(elec.f_en.correction_el);
         }
 
+        if (inp.gaussian_charge_file != "none")
+        {
+            titles.push_back("E_gaussian_field");
+            energies_Ry.push_back(elec.f_en.gaussian_field);
+        }
+
         //! electric field energy
         if (inp.efield_flag)
         {

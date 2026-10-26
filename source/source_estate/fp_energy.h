@@ -31,6 +31,7 @@ struct fenergy
     double exx = 0.0;            ///< the exact exchange energy.
     double ml_exx = 0.0;         ///< the ML-EXX energy.
 
+    double gaussian_field = 0.0; ///< complete QM-environment Gaussian cross energy
     double efield = 0.0;    ///< dipole potential in surface calculations
     double gatefield = 0.0; ///< correction energy for gatefield
     double evdw = 0.0;      ///< the vdw energy

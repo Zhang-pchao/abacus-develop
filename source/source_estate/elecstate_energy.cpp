@@ -324,6 +324,10 @@ void ElecState::cal_energies(const int type,
     //! Hartree energy
     this->f_en.hartree_energy = get_hartree_energy();
 
+    // The external Gaussian potential is in v_eff and is removed in deband.
+    // Restore its electronic and ionic cross terms once, without MM self energy.
+    this->f_en.gaussian_field = this->pot->gaussian_field_energy();
+
     //! energy from E-field
     this->f_en.efield = get_etot_efield();
 

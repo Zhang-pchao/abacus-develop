@@ -1,5 +1,6 @@
 #include "potential_new.h"
 #include "pot_pcc.h"
+#include "pot_gaussian_field.h"
 
 #include "pot_ml_exx.h"
 #include "source_base/global_function.h"
@@ -359,6 +360,39 @@ double Potential::get_ml_exx_energy() const
 #else
     return 0.0;
 #endif
+}
+
+const PotGaussianField* Potential::gaussian_field_component() const
+{
+    for (const PotBase* component : this->components)
+    {
+        const auto* field = dynamic_cast<const PotGaussianField*>(component);
+        if (field != nullptr) { return field; }
+    }
+    return nullptr;
+}
+
+bool Potential::has_gaussian_field() const
+{
+    return this->gaussian_field_component() != nullptr;
+}
+
+double Potential::gaussian_field_energy() const
+{
+    const auto* field = this->gaussian_field_component();
+    return field == nullptr ? 0.0 : field->get_energy();
+}
+
+void Potential::add_gaussian_field_force(const UnitCell& cell, ModuleBase::matrix& force) const
+{
+    const auto* field = this->gaussian_field_component();
+    if (field != nullptr) { field->add_force(cell, force); }
+}
+
+void Potential::write_gaussian_field_result(std::ostream& output) const
+{
+    const auto* field = this->gaussian_field_component();
+    if (field != nullptr) { field->write_result(output); }
 }
 
 const PotPcc* Potential::pcc_component() const

@@ -7,6 +7,7 @@
 #include "source_pw/module_pwdft/stru_fac.h"
 #include "source_pw/module_pwdft/vsep_pw.h"
 
+#include <iosfwd>
 #include <memory>
 #include <vector>
 
@@ -15,6 +16,7 @@ struct Input_para;
 namespace elecstate
 {
 class PotPcc;
+class PotGaussianField;
 class TDFieldManager;
 
 /**
@@ -82,6 +84,12 @@ class Potential : public PotBase
     void get_vnew(const Charge* chg, ModuleBase::matrix& vnew);
 
     PotBase* get_pot_type(const std::string& pot_type, const Input_para& input);
+
+    // The Gaussian field cross energy is added once after band subtraction.
+    bool has_gaussian_field() const;
+    double gaussian_field_energy() const;
+    void add_gaussian_field_force(const UnitCell& cell, ModuleBase::matrix& force) const;
+    void write_gaussian_field_result(std::ostream& output) const;
 
     // Solvation terms of the registered components; not PotBase overrides, so
     // modules that stub Potential need not know about solvation.
@@ -237,6 +245,7 @@ class Potential : public PotBase
 
     // the registered PCC component, or nullptr when PCC is off
     const PotPcc* pcc_component() const;
+    const PotGaussianField* gaussian_field_component() const;
     PotBase* make_sccs_pot(const Input_para& input);
 
     std::vector<double> v_eff_fixed;

@@ -10,6 +10,69 @@ void ReadInput::item_model()
     // NOTE: The order of add_item() calls below determines the parameter order
     // in the generated documentation (docs/advanced/input_files/input-main.md).
     // Please preserve this ordering when adding new parameters.
+    // Neutral periodic Gaussian environment.
+    {
+        Input_Item item("gaussian_charge_file");
+        item.annotation = "neutral periodic Gaussian environment file";
+        item.category = "Electric field and dipole correction";
+        item.type = "String";
+        item.default_value = "none";
+        item.description = R"(File containing QMDPA_GAUSSIAN_FIELD_V1, charge count, and rows id q sigma x y z.
+Charges are in e and Gaussian standard deviations and Cartesian coordinates in Bohr.
+The environment and periodic QM subsystem must each be neutral. G=0 is omitted;
+no compensating background, MM self energy or MM-MM energy is added. The complete
+QM-MM cross energy and QM/environment forces use the same reciprocal cube.
+Requires CPU PW PBE SCF, nspin=1, norm-conserving pseudopotentials, double precision,
+smearing_method=fixed, symmetry=-1, gamma_only=false and an orthorhombic fixed cell.
+No stress, other external fields, implicit solvent, DFT+U, DFT-1/2 or DeePKS.
+Force output includes a full-precision environment-force block in Ry/Bohr.
+QM forces retain their net reaction; they are not centered separately.)";
+        read_sync_string(input.gaussian_charge_file);
+        item.check_value = [](const Input_Item&, const Parameter& para) {
+            const auto& x = para.inp;
+            if (x.gaussian_charge_file == "none") { return; }
+            std::string error;
+            if (x.gaussian_charge_file.empty()) { error = "requires a file or none"; }
+            else if (x.device != "cpu" || x.basis_type != "pw" || x.esolver_type != "ksdft")
+            { error = "requires CPU PW KS-DFT"; }
+            else if (x.calculation != "scf" || x.cal_stress) { error = "requires SCF without stress"; }
+            else if (x.nspin != 1 || x.noncolin || x.lspinorb || x.precision != "double")
+            { error = "requires nonmagnetic double precision"; }
+            else if (x.symmetry != "-1" || x.gamma_only) { error = "requires symmetry -1 and complete signed reciprocal storage"; }
+            else if (x.smearing_method != "fixed" || (x.dft_functional != "pbe" && x.dft_functional != "PBE"))
+            { error = "requires PBE and fixed occupations"; }
+            else if (x.nelec_delta != 0.0) { error = "does not support a charged QM subsystem"; }
+            else if (x.assume_isolated != "none" || x.imp_sol != 0 || x.efield_flag || x.gate_flag
+                     || x.dfthalf_type != 0 || x.dft_plus_u != 0 || x.deepks_scf || x.deepks_out_labels
+                     || x.deepks_bandgap || x.deepks_v_delta || x.dm_to_rho || x.ml_exx)
+            { error = "cannot be combined with isolated-cell corrections, other fields, solvent or modified functionals"; }
+            else if (!x.vl_in_h || !x.vion_in_h || !x.vh_in_h)
+            { error = "requires local ionic and Hartree terms"; }
+            if (!error.empty())
+            {
+                const std::string message = "gaussian_charge_file " + error;
+                ModuleBase::WARNING_QUIT("ReadInput", message);
+            }
+        };
+        this->add_item(item);
+    }
+    {
+        Input_Item item("gaussian_charge_kmax");
+        item.annotation = "Gaussian-field reciprocal cube half-width";
+        item.category = "Electric field and dipole correction";
+        item.type = "Integer";
+        item.default_value = "6";
+        item.description = "Retain every reciprocal vector with integer components from -K to K except zero. Each signed vector is counted once. K must be 1 through 32; the entire cube must fit the density cutoff and FFT grid. Gaussian widths are physical model parameters; K convergence must be checked separately.";
+        read_sync_int(input.gaussian_charge_kmax);
+        item.check_value = [](const Input_Item&, const Parameter& para) {
+            if (para.inp.gaussian_charge_kmax < 1 || para.inp.gaussian_charge_kmax > 32)
+            {
+                ModuleBase::WARNING_QUIT("ReadInput", "gaussian_charge_kmax must be between 1 and 32");
+            }
+        };
+        this->add_item(item);
+    }
+
     // Electric field and dipole correction
     {
         Input_Item item("efield_flag");

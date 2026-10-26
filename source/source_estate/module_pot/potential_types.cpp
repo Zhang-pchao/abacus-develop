@@ -3,6 +3,7 @@
 #include "gatefield.h"
 #include "pot_local.h"
 #include "pot_pcc.h"
+#include "pot_gaussian_field.h"
 #include "pot_sccs.h"
 #include "pot_sep.h"
 #include "pot_surchem.h"
@@ -59,6 +60,11 @@ PotBase* Potential::get_pot_type(const std::string& pot_type, const Input_para& 
         }
         const int open_axis = input.pcc_2d_axis;
         return new PotPcc(this->rho_basis_, PotPcc::Dimension::slab, open_axis, electron_count);
+    }
+    else if (pot_type == "gaussian_field")
+    {
+        return new PotGaussianField(this->rho_basis_, input.gaussian_charge_file,
+                                    input.gaussian_charge_kmax, input.nelec, GlobalV::ofs_running);
     }
     else if (pot_type == "sccs")
     {

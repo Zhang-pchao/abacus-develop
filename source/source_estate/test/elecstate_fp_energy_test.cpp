@@ -93,3 +93,19 @@ TEST_F(fenergy, eferm_get_efval)
     std::string output = testing::internal::GetCapturedStdout();
     EXPECT_THAT(output, testing::HasSubstr("Please check NSPIN when TWO_EFERMI is true"));
 }
+
+TEST_F(fenergy, gaussian_field_cross_energy_once)
+{
+    // The band contribution contains the external electron potential; deband
+    // removes it and the complete electron/ion cross energy restores it once.
+    f_en.eband = 5.0;
+    f_en.deband = -2.0;
+    f_en.deband_harris = -2.0;
+    f_en.gaussian_field = 2.7;
+    f_en.calculate_etot();
+    f_en.calculate_harris();
+    EXPECT_DOUBLE_EQ(f_en.etot, 5.7);
+    EXPECT_DOUBLE_EQ(f_en.etot_harris, 5.7);
+    f_en.clear_all();
+    EXPECT_DOUBLE_EQ(f_en.gaussian_field, 0.0);
+}

@@ -563,6 +563,8 @@ struct Input_para
     //  efield and dipole correction
     //  Yu Liu add 2022-05-18
     // ==========================================================
+    std::string gaussian_charge_file = "none"; ///< neutral Gaussian environment file, or none
+    int gaussian_charge_kmax = 6;              ///< complete reciprocal cube half-width
     bool efield_flag = false;   ///< add electric field
     bool dip_cor_flag = false;  ///< dipole correction
     int efield_dir = 2;         ///< the direction of the electric field or dipole correction
