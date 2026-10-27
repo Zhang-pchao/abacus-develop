@@ -14,6 +14,13 @@ if(NOT ENABLE_MPI)
     ENVIRONMENT "OMP_NUM_THREADS=1;MKL_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1")
 endif()
 
+# The adaptive-threshold controller is also exercised by serial PW builds.
+AddTest(
+  TARGET MODULE_HSOLVER_base
+  LIBS parameter psi device base
+  SOURCES test_hsolver.cpp ../hsolver.cpp
+)
+
 set(TD_LINEAR_TEST_SOURCES
   ../hsolver_linear.cpp
   ../linear_bicgstab.cpp
@@ -93,12 +100,6 @@ if (ENABLE_MPI)
             ../../source_basis/module_pw/test/test_tool.cpp
   )
   endif()
-
-  AddTest(
-    TARGET MODULE_HSOLVER_base
-    LIBS parameter  psi device base
-    SOURCES test_hsolver.cpp ../hsolver.cpp
-  )
 
   AddTest(
     TARGET MODULE_HSOLVER_pw

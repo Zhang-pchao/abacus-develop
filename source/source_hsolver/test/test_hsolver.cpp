@@ -45,10 +45,10 @@ TEST(HSolverCalHsolveErrorTest, OtherCasesAreZero)
 TEST(HSolverSetDiagethrKsTest, NonPwKsdftIsZero)
 {
     EXPECT_EQ(
-        hsolver::set_diagethr_ks("lcao", "ksdft", "scf", "atomic", "double", 0, 1, 1.0e-3, 1.0e-2, 1.0e-2, 8.0, 1.0e-6),
+        hsolver::set_diagethr_ks("lcao", "ksdft", "scf", "atomic", "double", 0, 1, 1.0e-3, 1.0e-2, 1.0e-2, 8.0, 1.0e-6, 0.0),
         0.0);
     EXPECT_EQ(
-        hsolver::set_diagethr_ks("pw", "sdft", "scf", "atomic", "double", 0, 1, 1.0e-3, 1.0e-2, 1.0e-2, 8.0, 1.0e-6),
+        hsolver::set_diagethr_ks("pw", "sdft", "scf", "atomic", "double", 0, 1, 1.0e-3, 1.0e-2, 1.0e-2, 8.0, 1.0e-6, 0.0),
         0.0);
 }
 
@@ -56,11 +56,11 @@ TEST(HSolverSetDiagethrKsTest, Nscf)
 {
     // the default 1e-2 is tightened to 0.1 * min(1e-2, scf_thr / nelec)
     EXPECT_DOUBLE_EQ(
-        hsolver::set_diagethr_ks("pw", "ksdft", "nscf", "atomic", "double", 0, 1, 1.0e-3, 1.0e-2, 1.0e-2, 8.0, 1.0e-6),
+        hsolver::set_diagethr_ks("pw", "ksdft", "nscf", "atomic", "double", 0, 1, 1.0e-3, 1.0e-2, 1.0e-2, 8.0, 1.0e-6, 0.0),
         1.25e-8);
     // a threshold the user already tightened is kept
     EXPECT_DOUBLE_EQ(
-        hsolver::set_diagethr_ks("pw", "ksdft", "nscf", "atomic", "double", 0, 1, 1.0e-3, 1.0e-2, 1.0e-6, 8.0, 1.0e-6),
+        hsolver::set_diagethr_ks("pw", "ksdft", "nscf", "atomic", "double", 0, 1, 1.0e-3, 1.0e-2, 1.0e-6, 8.0, 1.0e-6, 0.0),
         1.0e-6);
 }
 
@@ -68,18 +68,18 @@ TEST(HSolverSetDiagethrKsTest, FirstIteration)
 {
     // atomic starting charge keeps the loose 1e-2
     EXPECT_DOUBLE_EQ(
-        hsolver::set_diagethr_ks("pw", "ksdft", "scf", "atomic", "double", 0, 1, 1.0e-3, 1.0e-2, 1.0e-2, 8.0, 1.0e-6),
+        hsolver::set_diagethr_ks("pw", "ksdft", "scf", "atomic", "double", 0, 1, 1.0e-3, 1.0e-2, 1.0e-2, 8.0, 1.0e-6, 0.0),
         1.0e-2);
     // a charge read from file is trusted, so the first diagonalization is strict
     EXPECT_DOUBLE_EQ(
-        hsolver::set_diagethr_ks("pw", "ksdft", "scf", "file", "double", 0, 1, 1.0e-3, 1.0e-2, 1.0e-2, 8.0, 1.0e-6),
+        hsolver::set_diagethr_ks("pw", "ksdft", "scf", "file", "double", 0, 1, 1.0e-3, 1.0e-2, 1.0e-2, 8.0, 1.0e-6, 0.0),
         1.0e-5);
     EXPECT_DOUBLE_EQ(
-        hsolver::set_diagethr_ks("pw", "ksdft", "scf", "wfc", "double", 0, 1, 1.0e-3, 1.0e-2, 1.0e-2, 8.0, 1.0e-6),
+        hsolver::set_diagethr_ks("pw", "ksdft", "scf", "wfc", "double", 0, 1, 1.0e-3, 1.0e-2, 1.0e-2, 8.0, 1.0e-6, 0.0),
         1.0e-5);
     // relax/md never go below pw_diag_thr_init
     EXPECT_DOUBLE_EQ(
-        hsolver::set_diagethr_ks("pw", "ksdft", "relax", "file", "double", 0, 1, 1.0e-3, 1.0e-3, 1.0e-2, 8.0, 1.0e-6),
+        hsolver::set_diagethr_ks("pw", "ksdft", "relax", "file", "double", 0, 1, 1.0e-3, 1.0e-3, 1.0e-2, 8.0, 1.0e-6, 0.0),
         1.0e-3);
 }
 
@@ -87,21 +87,21 @@ TEST(HSolverSetDiagethrKsTest, LaterIterations)
 {
     // iteration 2 restarts from 1e-2 and is bounded by 0.1 * drho / nelec
     EXPECT_DOUBLE_EQ(
-        hsolver::set_diagethr_ks("pw", "ksdft", "scf", "atomic", "double", 0, 2, 1.0e-3, 1.0e-2, 1.0e-7, 8.0, 1.0e-6),
+        hsolver::set_diagethr_ks("pw", "ksdft", "scf", "atomic", "double", 0, 2, 1.0e-3, 1.0e-2, 1.0e-7, 8.0, 1.0e-6, 0.0),
         1.25e-5);
     // later iterations only ever tighten the threshold
     EXPECT_DOUBLE_EQ(
-        hsolver::set_diagethr_ks("pw", "ksdft", "scf", "atomic", "double", 0, 3, 1.0e-3, 1.0e-2, 1.0e-6, 8.0, 1.0e-6),
+        hsolver::set_diagethr_ks("pw", "ksdft", "scf", "atomic", "double", 0, 3, 1.0e-3, 1.0e-2, 1.0e-6, 8.0, 1.0e-6, 0.0),
         1.0e-6);
     EXPECT_DOUBLE_EQ(
-        hsolver::set_diagethr_ks("pw", "ksdft", "scf", "atomic", "double", 0, 3, 1.0e-3, 1.0e-2, 1.0e-4, 8.0, 1.0e-6),
+        hsolver::set_diagethr_ks("pw", "ksdft", "scf", "atomic", "double", 0, 3, 1.0e-3, 1.0e-2, 1.0e-4, 8.0, 1.0e-6, 0.0),
         1.25e-5);
 }
 
 TEST(HSolverSetDiagethrKsTest, SinglePrecisionLowerBound)
 {
     EXPECT_DOUBLE_EQ(
-        hsolver::set_diagethr_ks("pw", "ksdft", "scf", "atomic", "single", 0, 3, 1.0e-3, 1.0e-2, 1.0e-6, 8.0, 1.0e-6),
+        hsolver::set_diagethr_ks("pw", "ksdft", "scf", "atomic", "single", 0, 3, 1.0e-3, 1.0e-2, 1.0e-6, 8.0, 1.0e-6, 0.0),
         0.5e-4);
 }
 
@@ -153,8 +153,8 @@ TEST(HSolverResetDiagEthrTest, PwKsdft)
 {
     const std::string log_name = "test_hsolver_reset_diag_ethr.log";
     std::ofstream ofs(log_name.c_str());
-    const double new_ethr = hsolver::reset_diag_ethr(ofs, "pw", "ksdft", "double", 1.0e-2, 1.0e-3, 1.0e-2, 8.0);
-    const double new_ethr_single = hsolver::reset_diag_ethr(ofs, "pw", "ksdft", "single", 1.0e-2, 1.0e-3, 1.0e-2, 8.0);
+    const double new_ethr = hsolver::reset_diag_ethr(ofs, "pw", "ksdft", "double", 1.0e-2, 1.0e-3, 1.0e-2, 8.0, 0.0);
+    const double new_ethr_single = hsolver::reset_diag_ethr(ofs, "pw", "ksdft", "single", 1.0e-2, 1.0e-3, 1.0e-2, 8.0, 0.0);
     ofs.close();
 
     EXPECT_DOUBLE_EQ(new_ethr, 1.25e-5);
@@ -172,6 +172,48 @@ TEST(HSolverResetDiagEthrTest, PwKsdft)
 TEST(HSolverResetDiagEthrTest, OtherCasesAreZero)
 {
     std::ofstream ofs;
-    EXPECT_EQ(hsolver::reset_diag_ethr(ofs, "lcao", "ksdft", "double", 1.0e-2, 1.0e-3, 1.0e-2, 8.0), 0.0);
-    EXPECT_EQ(hsolver::reset_diag_ethr(ofs, "pw", "sdft", "double", 1.0e-2, 1.0e-3, 1.0e-2, 8.0), 0.0);
+    EXPECT_EQ(hsolver::reset_diag_ethr(ofs, "lcao", "ksdft", "double", 1.0e-2, 1.0e-3, 1.0e-2, 8.0, 0.0), 0.0);
+    EXPECT_EQ(hsolver::reset_diag_ethr(ofs, "pw", "sdft", "double", 1.0e-2, 1.0e-3, 1.0e-2, 8.0, 0.0), 0.0);
+}
+
+TEST(HSolverSetDiagethrKsTest, ExplicitFloorAtSmallDensityResidual)
+{
+    const double unbounded = hsolver::set_diagethr_ks(
+        "pw", "ksdft", "scf", "atomic", "double", 0, 13, 1.415e-12, 1e-2, 1e-13, 76.0, 1e-13, 0.0);
+    EXPECT_NEAR(unbounded, 1.861842105263158e-15, 1e-29);
+    const double bounded = hsolver::set_diagethr_ks(
+        "pw", "ksdft", "scf", "atomic", "double", 0, 13, 1.415e-12, 1e-2, 1e-13, 76.0, 1e-13, 1e-13);
+    EXPECT_DOUBLE_EQ(bounded, 1e-13);
+}
+
+TEST(HSolverSetDiagethrKsTest, ExplicitFloorPreservesCoarserAndInapplicableCases)
+{
+    EXPECT_DOUBLE_EQ(hsolver::set_diagethr_ks(
+        "pw", "ksdft", "scf", "atomic", "double", 0, 3, 1e-3, 1e-2, 1e-6, 8.0, 1e-13, 1e-13), 1e-6);
+    EXPECT_DOUBLE_EQ(hsolver::set_diagethr_ks(
+        "pw", "ksdft", "scf", "atomic", "single", 0, 3, 1e-12, 1e-2, 1e-6, 8.0, 1e-13, 1e-13), 0.5e-4);
+    EXPECT_DOUBLE_EQ(hsolver::set_diagethr_ks(
+        "lcao", "ksdft", "scf", "atomic", "double", 0, 3, 1e-12, 1e-2, 1e-6, 8.0, 1e-13, 1e-13), 0.0);
+    EXPECT_DOUBLE_EQ(hsolver::set_diagethr_ks(
+        "pw", "ksdft", "nscf", "atomic", "double", 0, 1, 1e-12, 1e-2, 1e-15, 8.0, 1e-13, 1e-13), 1e-15);
+}
+
+TEST(HSolverSetDiagethrKsTest, ExplicitFloorAlsoBoundsSecondIterationReset)
+{
+    EXPECT_DOUBLE_EQ(hsolver::set_diagethr_ks(
+        "pw", "ksdft", "scf", "atomic", "double", 0, 2, 1e-14, 1e-2, 1e-2, 76.0, 1e-13, 1e-13), 1e-13);
+}
+
+TEST(HSolverResetDiagEthrTest, ExplicitFloorPreservesErrorAccounting)
+{
+    const std::string log_name = testing::TempDir() + "test_hsolver_explicit_floor.log";
+    std::ofstream ofs(log_name.c_str());
+    const double bounded = hsolver::reset_diag_ethr(ofs, "pw", "ksdft", "double", 1e-3, 1e-12, 1e-2, 76.0, 1e-13);
+    const double disabled = hsolver::reset_diag_ethr(ofs, "pw", "ksdft", "double", 1e-3, 1e-12, 1e-2, 76.0, 0.0);
+    ofs.close();
+    EXPECT_DOUBLE_EQ(bounded, 1e-13);
+    EXPECT_NEAR(disabled, 1.315789473684211e-15, 1e-29);
+    // A bounded inner solve still reports its error; it does not manufacture convergence.
+    EXPECT_DOUBLE_EQ(hsolver::cal_hsolve_error("pw", "ksdft", bounded, 76.0), 7.6e-12);
+    std::remove(log_name.c_str());
 }

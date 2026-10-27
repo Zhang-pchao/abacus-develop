@@ -32,3 +32,19 @@ $\ket{\tilde\chi_i}=\ket{\chi_i}-\sum_{n=1}^{N_\phi}\braket{\phi_n|\chi_i}\ket{\
 Here the number of KS orbitals $N_\phi$ is controlled by the parameter `nbands` while the number of stochastic orbitals $N_\chi$ is controlled by `nbands_sto`.
 
 Besides, although SDFT does not diagonalize the hamiltonian, it can also caluclate DOS and electronic conductivities with parameters `out_dos` and `cal_cond` separately.
+
+
+### Explicit lower bound for the SCF eigenvalue threshold
+
+For double-precision PW Kohn-Sham `calculation scf`, the optional
+`pw_diag_thr_floor` sets a lower bound, in Ry, on the adaptive inner eigensolver
+threshold. The default `0.0` disables the option and preserves the original
+rule. A positive bound must not exceed `pw_diag_thr`; other calculation,
+basis, solver-policy and precision modes reject nonzero use.
+
+The bound applies to the usual adaptive update and the first-iteration reset.
+It does not change the density criterion `scf_thr`, disable residual or
+orthogonalization guards, or accept an unconverged calculation. A value that
+avoids over-tightening may still prevent SCF convergence or yield insufficient
+force accuracy. Validate energy, forces and convergence for the complete
+configuration before using it in dynamics; no value is recommended universally.

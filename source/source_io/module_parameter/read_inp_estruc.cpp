@@ -3,6 +3,8 @@
 #include "read_input.h"
 #include "read_input_tool.h"
 
+#include <cmath>
+
 namespace ModuleIO
 {
 void ReadInput::item_elec_stru()
@@ -1062,6 +1064,39 @@ Use case: When experimental or high-level theoretical results suggest that the S
                 {
                     para.input.pw_diag_thr = 1.0e-5;
                 }
+            }
+        };
+        this->add_item(item);
+    }
+    {
+        Input_Item item("pw_diag_thr_floor");
+        item.annotation = "optional lower bound for the adaptive FP64 SCF eigenvalue threshold";
+        item.category = "Plane wave related variables";
+        item.type = "Real";
+        item.description = R"(An explicit lower bound for the adaptive eigenvalue threshold in double-precision PW Kohn-Sham SCF.
+Zero disables this control and preserves the original adaptive rule. A positive value must not exceed pw_diag_thr.
+The bound applies to both normal SCF updates and the first-iteration threshold reset. It does not change scf_thr,
+mark an unconverged SCF as converged, or disable residual and orthogonalization guards.
+Convergence and energy/force accuracy require separate verification for the chosen value.
+Other calculation, basis, solver and precision modes reject a nonzero value.)";
+        item.default_value = "0.0";
+        item.unit = "Ry";
+        item.set_availability("basis_type==pw and esolver_type==ksdft and precision==double and calculation==scf");
+        read_sync_double(input.pw_diag_thr_floor);
+        item.check_value = [](const Input_Item& item, const Parameter& para) {
+            const double floor = para.input.pw_diag_thr_floor;
+            if (!std::isfinite(floor) || floor < 0.0)
+            {
+                ModuleBase::WARNING_QUIT("ReadInput", "pw_diag_thr_floor must be finite and nonnegative");
+            }
+            if (floor > 0.0 && floor > para.input.pw_diag_thr)
+            {
+                ModuleBase::WARNING_QUIT("ReadInput", "pw_diag_thr_floor must not exceed pw_diag_thr");
+            }
+            if (floor > 0.0 && (para.input.basis_type != "pw" || para.input.esolver_type != "ksdft"
+                               || para.input.precision != "double" || para.input.calculation != "scf"))
+            {
+                ModuleBase::WARNING_QUIT("ReadInput", "pw_diag_thr_floor requires double-precision PW Kohn-Sham SCF");
             }
         };
         this->add_item(item);

@@ -19,7 +19,8 @@ double set_diagethr_ks(const std::string basis_type,
                        const double pw_diag_thr_init,
                        const double diag_ethr_in,
                        const double nelec_in,
-                       const double scf_thr_in)
+                       const double scf_thr_in,
+                       const double diag_thr_floor_in)
 {
     double res_diag_ethr = diag_ethr_in;
 
@@ -77,6 +78,11 @@ double set_diagethr_ks(const std::string basis_type,
         if (precision_flag_in == "single")
         {
             res_diag_ethr = std::max(res_diag_ethr, static_cast<double>(0.5e-4));
+        }
+        else if (precision_flag_in == "double" && calculation_in == "scf" && diag_thr_floor_in > 0.0)
+        {
+            // An explicit floor controls the inner solve, not SCF density acceptance.
+            res_diag_ethr = std::max(res_diag_ethr, diag_thr_floor_in);
         }
     }
     else
@@ -151,7 +157,8 @@ double reset_diag_ethr(std::ofstream& ofs_running,
                        const double hsover_error,
                        const double drho_in,
                        const double diag_ethr_in,
-                       const double nelec_in)
+                       const double nelec_in,
+                       const double diag_thr_floor_in)
 {
 
     double new_diag_ethr = 0.0;
@@ -172,6 +179,10 @@ double reset_diag_ethr(std::ofstream& ofs_running,
         if (precision_flag_in == "single")
         {
             new_diag_ethr = std::max(new_diag_ethr, static_cast<double>(0.5e-4));
+        }
+        else if (precision_flag_in == "double" && diag_thr_floor_in > 0.0)
+        {
+            new_diag_ethr = std::max(new_diag_ethr, diag_thr_floor_in);
         }
         ofs_running << " New diag ethr = " << new_diag_ethr << std::endl;
     }
