@@ -1,0 +1,45 @@
+name: QM/DPA native contracts
+
+on:
+  push:
+    branches: ['qmdpa/**']
+    paths: ['source/**', 'CMakeLists.txt', 'cmake/**', '.github/workflows/qmdpa-contracts.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  serial-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      OMP_NUM_THREADS: '1'
+      OPENBLAS_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install serial build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ gfortran libfftw3-dev libopenblas-dev ninja-build
+      - name: Configure the existing serial PW tests
+        run: |
+          cmake -S . -B build-qmdpa -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DENABLE_MPI=OFF -DENABLE_OPENMP=ON \
+            -DENABLE_LCAO=OFF -DENABLE_LIBXC=OFF -DENABLE_JSON=OFF \
+            -DENABLE_ELPA=OFF -DENABLE_MLALGO=OFF -DENABLE_CNPY=OFF \
+            -DENABLE_LIBRI=OFF -DENABLE_NATIVE_OPTIMIZATION=OFF \
+            -DUSE_CUDA=OFF -DUSE_ROCM=OFF -DBUILD_TESTING=ON \
+            -DCOMMIT_INFO=OFF -DGIT_SUBMODULE=OFF -DBLA_VENDOR=OpenBLAS
+      - name: Build focused native tests
+        run: |
+          cmake --build build-qmdpa --parallel 2 --target \
+            MODULE_HSOLVER_base MODULE_HSOLVER_dav_subspace_residual \
+            MODULE_ESTATE_gaussian_charge_field MODULE_ESTATE_elecstate_fp_energy
+      - name: Run native contracts
+        run: |
+          ctest --test-dir build-qmdpa --output-on-failure \
+            -R 'MODULE_(HSOLVER_(base|dav_subspace_residual)|ESTATE_(gaussian_charge_field|elecstate_fp_energy))$'
