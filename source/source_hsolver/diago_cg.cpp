@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cmath>
 #include "ATen/core/tensor_map.h"
 #include "ATen/core/tensor_utils.h"
 #include "ATen/kernels/lapack.h"
@@ -497,84 +498,60 @@ void DiagoCG<T, Device>::schmit_orth(const int& m, const ct::Tensor& psi, const 
     REQUIRES_OK(m >= 0, "DiagoCG_New::schmit_orth: m < 0");
     REQUIRES_OK(this->n_band_ >= m, "DiagoCG_New::schmit_orth: n_band < m");
 
-    ct::Tensor lagrange_so = ct::Tensor(ct::DataTypeToEnum<T>::value, ct::DeviceTypeToEnum<ct_Device>::value, {m + 1});
+    ct::Tensor lagrange_so(ct::DataTypeToEnum<T>::value,
+                           ct::DeviceTypeToEnum<ct_Device>::value,
+                           {m + 1});
+    ct::Tensor residual_s(ct::DataTypeToEnum<T>::value,
+                          ct::DeviceTypeToEnum<ct_Device>::value,
+                          {this->n_basis_});
 
-    if (this->n_basis_ == 0)
+    // A second projection removes components left by cancellation in the first.
+    // Apply S to the actual residual; subtracting two nearly equal squared norms
+    // can otherwise turn a small, positive norm into zero or a negative value.
+    for (int pass = 0; pass < 2 && m > 0; ++pass)
     {
-        lagrange_so.zero();
-    }
-    //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-    // haozhihan replace 2022-10-6
-    int inc = 1;
-    ModuleBase::gemv_op<T, Device>()('C',
-                                     this->n_basis_,
-                                     m + 1,
-                                     this->one_,
-                                     psi.data<T>(),
-                                     matrix_ld,
-                                     sphi.data<T>(),
-                                     inc,
-                                     this->zero_,
-                                     lagrange_so.data<T>(),
-                                     inc);
-
-    // be careful , here reduce m+1
-    Parallel_Reduce::reduce_pool(lagrange_so.data<T>(), m + 1);
-
-    //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-    // haozhihan replace 2022-10-6
-    ModuleBase::gemv_op<T, Device>()('N',
-                                     this->n_basis_,
-                                     m,
-                                     this->neg_one_,
-                                     psi.data<T>(),
-                                     matrix_ld,
-                                     lagrange_so.data<T>(),
-                                     inc,
-                                     this->one_,
-                                     phi_m.data<T>(),
-                                     inc);
-
-    //======================================================================
-    /*for (int j = 0; j < m; j++)
-    {
-        for (int ig =0; ig < dim; ig++)
+        const T* overlap_input = pass == 0 ? sphi.data<T>() : residual_s.data<T>();
+        if (this->n_basis_ == 0)
         {
-            phi_m[ig] -= lagrange[j] * psi(j, ig);
+            lagrange_so.zero();
         }
-        psi_norm -= ( conj(lagrange[j]) * lagrange[j] ).real();
-    }*/
-    //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    auto psi_norm = ct::extract<Real>(lagrange_so[m])
-                    - dot_real_op()(m, lagrange_so.data<T>(), lagrange_so.data<T>(), false);
+        ModuleBase::gemv_op<T, Device>()('C',
+                                         this->n_basis_,
+                                         m,
+                                         this->one_,
+                                         psi.data<T>(),
+                                         matrix_ld,
+                                         overlap_input,
+                                         1,
+                                         this->zero_,
+                                         lagrange_so.data<T>(),
+                                         1);
+        Parallel_Reduce::reduce_pool(lagrange_so.data<T>(), m);
+        ModuleBase::gemv_op<T, Device>()('N',
+                                         this->n_basis_,
+                                         m,
+                                         this->neg_one_,
+                                         psi.data<T>(),
+                                         matrix_ld,
+                                         lagrange_so.data<T>(),
+                                         1,
+                                         this->one_,
+                                         phi_m.data<T>(),
+                                         1);
+        this->op_->spsi(phi_m.data<T>(), residual_s.data<T>(), this->n_basis_, 1);
+    }
 
-    if (psi_norm <= 0.0)
+    const T* norm_input = m == 0 ? sphi.data<T>() : residual_s.data<T>();
+    const Real psi_norm = dot_real_op()(this->n_basis_, phi_m.data<T>(), norm_input);
+    if (!(psi_norm > Real(0.0)) || !std::isfinite(psi_norm))
     {
         std::cout << " m = " << m << std::endl;
-        for (int j = 0; j <= m; ++j)
-        {
-            std::cout << "j = " << j << " lagrange norm = " << ct::extract<Real>(lagrange_so[j] * lagrange_so[j])
-                      << std::endl;
-        }
-        std::cout << " in DiagoCG, psi norm = " << psi_norm << std::endl;
-        std::cout << " This may be due to npwx < nbands: the number of plane waves is less than" << std::endl;
-        std::cout << " the number of bands, leading to a rank-deficient problem." << std::endl;
-        std::cout << " Please increase ecutwfc or reduce nbands." << std::endl;
-        std::cout << " If you use GNU compiler, it may due to the zdotc is unavailable." << std::endl;
-        ModuleBase::WARNING_QUIT("schmit_orth", "psi_norm <= 0.0");
+        std::cout << " in DiagoCG, residual S-norm = " << psi_norm << std::endl;
+        ModuleBase::WARNING_QUIT("schmit_orth", "Non-positive or non-finite residual S-norm");
     }
 
-    psi_norm = sqrt(psi_norm);
-
-    //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-    // haozhihan replace 2022-10-6
-    // scal_op<Real, Device>()(ctx_, this->n_basis_, &psi_norm, pphi_m, 1);
-    //======================================================================
-    // for (int ig = 0; ig < this->n_basis_; ig++)
-    // {
-    //     pphi_m[ig] /= psi_norm;
-    // }
-    ModuleBase::vector_mul_real_op<T, Device>()(this->n_basis_, phi_m.data<T>(), phi_m.data<T>(), Real(1.0 / psi_norm));
+    const Real inverse_norm = Real(1.0) / std::sqrt(psi_norm);
+    ModuleBase::vector_mul_real_op<T, Device>()(this->n_basis_, phi_m.data<T>(), phi_m.data<T>(), inverse_norm);
 
     // ModuleBase::timer::end("DiagoCG","schmit_orth");
 }

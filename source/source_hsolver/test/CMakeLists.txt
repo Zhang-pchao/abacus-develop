@@ -5,6 +5,14 @@ abacus_disable_feature_definitions(__EXX)
 # A serial PW eigensolver reproducer; no LCAO or MPI initialization is needed.
 if(NOT ENABLE_MPI)
   AddTest(
+    TARGET MODULE_HSOLVER_cg_stability
+    LIBS parameter base psi device container
+    SOURCES test_diago_cg.cpp ../diago_cg.cpp ../diago_iter_assist.cpp ../diag_const_nums.cpp
+  )
+  set_tests_properties(MODULE_HSOLVER_cg_stability PROPERTIES
+    TIMEOUT 30 LABELS "hsolver;serial;cg"
+    ENVIRONMENT "OMP_NUM_THREADS=1;MKL_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1")
+  AddTest(
     TARGET MODULE_HSOLVER_dav_subspace_residual
     LIBS parameter base device container
     SOURCES test_diago_dav_subspace.cpp ../diago_dav_subspace.cpp
