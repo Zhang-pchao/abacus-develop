@@ -19,6 +19,13 @@ calculation; no norm is clamped and no random replacement vector is inserted.
 This numerical stabilization adds no INPUT parameter and does not relax the
 SCF or eigensolver convergence thresholds.
 
+The CG gradient and recurrent search direction are reprojected against earlier
+bands and the current band using the full complex overlap. The rotated state,
+its Hamiltonian image and its overlap image are normalized together, and the
+reported eigenvalue is their Rayleigh quotient. This preserves the rotation's
+orthonormal-basis assumption when a tight convergence request makes the search
+direction small. Generalized overlap images are recomputed after projection.
+
 ## Stochasic DFT
 We support stochastic DFT calculation (SDFT) or mixed stochastic-deterministic DFT (MDFT) with plane-wave basis [[Phys. Rev. B 106, 125132 (2022)](https://doi.org/10.1103/PhysRevB.106.125132)]. Different from traditional KSDFT with the explicit diagonalization method, SDFT and MDFT calculate physical quantities with trace of the corresponding operators. The advantages of SDFT and MDFT compared to the traditional KSDFT are the ability to simulate larger sizes and higher temperatures. In our package, SDFT and MDFT can be used by setting the `esolver_type` parameter to `sdft` for SCF calculations or MD calculations. To start with, you can refer to two [examples](https://github.com/deepmodeling/abacus-develop/tree/develop/examples/23_sdft) and an explanation of the [input variables](../input_files/input-main.md#electronic-structure-sdft).
 

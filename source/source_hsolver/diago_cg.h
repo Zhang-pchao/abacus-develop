@@ -88,6 +88,7 @@ class DiagoCG final
     void orth_grad(
         const ct::Tensor& psi,
         const int& m,
+        const ct::Tensor& phi_m,
         ct::Tensor& grad,
         ct::Tensor& scg,
         ct::Tensor& lagrange);

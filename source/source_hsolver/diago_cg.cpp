@@ -144,7 +144,7 @@ void DiagoCG<T, Device>::diag_once(const ct::Tensor& prec_in,
         do
         {
             this->calc_grad(prec, grad, hphi, sphi, pphi);
-            this->orth_grad(psi, m, grad, scg, lagrange);
+            this->orth_grad(psi, m, phi_m, grad, scg, lagrange);
             this->calc_gamma_cg(iter, // const int&
                                 cg_norm,
                                 theta, // const Real&
@@ -156,6 +156,9 @@ void DiagoCG<T, Device>::diag_once(const ct::Tensor& prec_in,
                                 g0,
                                 cg); // Tensor&
 
+            // The recurrence is tangent only in exact arithmetic. Reproject the
+            // search direction before normalizing a potentially tiny vector.
+            this->orth_grad(psi, m, phi_m, cg, scg, lagrange);
             this->op_->hpsi(cg.data<T>(), pphi.data<T>(), this->n_basis_, 1);
             this->op_->spsi(cg.data<T>(), scg.data<T>(), this->n_basis_, 1);
 
@@ -266,56 +269,43 @@ void DiagoCG<T, Device>::calc_grad(const ct::Tensor& prec,
 template <typename T, typename Device>
 void DiagoCG<T, Device>::orth_grad(const ct::Tensor& psi,
                                    const int& m,
+                                   const ct::Tensor& phi_m,
                                    ct::Tensor& grad,
                                    ct::Tensor& scg,
                                    ct::Tensor& lagrange)
 {
     const int matrix_ld = std::max(this->n_basis_, 1);
-    if (this->n_basis_ == 0)
+    this->op_->spsi(grad.data<T>(), scg.data<T>(), this->n_basis_, 1);
+    for (int pass = 0; pass < 2; ++pass)
     {
-        lagrange.zero();
+        if (this->n_basis_ == 0)
+        {
+            lagrange.zero();
+        }
+        if (m > 0)
+        {
+            ModuleBase::gemv_op<T, Device>()('C', this->n_basis_, m, this->one_,
+                                             psi.data<T>(), matrix_ld, scg.data<T>(), 1,
+                                             this->zero_, lagrange.data<T>(), 1);
+            Parallel_Reduce::reduce_pool(lagrange.data<T>(), m);
+            ModuleBase::gemv_op<T, Device>()('N', this->n_basis_, m, this->neg_one_,
+                                             psi.data<T>(), matrix_ld, lagrange.data<T>(), 1,
+                                             this->one_, grad.data<T>(), 1);
+            this->op_->spsi(grad.data<T>(), scg.data<T>(), this->n_basis_, 1);
+        }
+        // Remove the full complex overlap with the evolving current band.
+        // Recompute S after projection; subtracting psi from S*grad would be
+        // incorrect for a generalized eigenproblem with non-identity S.
+        T* current_overlap = lagrange.data<T>() + m;
+        ModuleBase::gemv_op<T, Device>()('C', this->n_basis_, 1, this->one_,
+                                         phi_m.data<T>(), matrix_ld, scg.data<T>(), 1,
+                                         this->zero_, current_overlap, 1);
+        Parallel_Reduce::reduce_pool(current_overlap, 1);
+        ModuleBase::gemv_op<T, Device>()('N', this->n_basis_, 1, this->neg_one_,
+                                         phi_m.data<T>(), matrix_ld, current_overlap, 1,
+                                         this->one_, grad.data<T>(), 1);
+        this->op_->spsi(grad.data<T>(), scg.data<T>(), this->n_basis_, 1);
     }
-    this->op_->spsi(grad.data<T>(), scg.data<T>(), this->n_basis_, 1); // scg = S|grad>
-    ModuleBase::gemv_op<T, Device>()('C',
-                                     this->n_basis_,
-                                     m,
-                                     this->one_,
-                                     psi.data<T>(),
-                                     matrix_ld,
-                                     scg.data<T>(),
-                                     1,
-                                     this->zero_,
-                                     lagrange.data<T>(),
-                                     1);
-
-    Parallel_Reduce::reduce_pool(lagrange.data<T>(), m);
-
-    // (3) orthogonal |g> and |scg> to all states (0~m-1)
-    //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-    // haozhihan replace 2022-10-07
-    ModuleBase::gemv_op<T, Device>()('N',
-                                     this->n_basis_,
-                                     m,
-                                     this->neg_one_,
-                                     psi.data<T>(),
-                                     matrix_ld,
-                                     lagrange.data<T>(),
-                                     1,
-                                     this->one_,
-                                     grad.data<T>(),
-                                     1);
-
-    ModuleBase::gemv_op<T, Device>()('N',
-                                     this->n_basis_,
-                                     m,
-                                     this->neg_one_,
-                                     psi.data<T>(),
-                                     matrix_ld,
-                                     lagrange.data<T>(),
-                                     1,
-                                     this->one_,
-                                     scg.data<T>(),
-                                     1);
 }
 
 template <typename T, typename Device>
@@ -454,34 +444,24 @@ bool DiagoCG<T, Device>::update_psi(const ct::Tensor& pphi,
                                                         cg.data<T>(),
                                                         sint_norm);
 
-    if (std::abs(eigen - e0) < ethreshold)
+    ModuleBase::vector_add_vector_op<T, Device, Real>()(this->n_basis_,
+                                                        sphi.data<T>(), sphi.data<T>(), cost,
+                                                        scg.data<T>(), sint_norm);
+    ModuleBase::vector_add_vector_op<T, Device, Real>()(this->n_basis_,
+                                                        hphi.data<T>(), hphi.data<T>(), cost,
+                                                        pphi.data<T>(), sint_norm);
+    const Real norm = dot_real_op()(this->n_basis_, phi_m.data<T>(), sphi.data<T>());
+    if (!(norm > Real(0)) || !std::isfinite(norm))
     {
-        // ModuleBase::timer::start("DiagoCG","update");
-        return true;
+        ModuleBase::WARNING_QUIT("DiagoCG::update_psi", "Invalid rotated S-norm");
     }
-    else
-    {
-        // for (int i = 0; i < this->n_basis_; i++)
-        // {
-        //     this->sphi[i] = this->sphi[i] * cost + sint_norm * this->scg[i];
-        //     this->hphi[i] = this->hphi[i] * cost + sint_norm * this->pphi[i];
-        // }
-
-        // haozhihan replace this 2022-10-6
-        ModuleBase::vector_add_vector_op<T, Device, Real>()(this->n_basis_,
-                                                            sphi.data<T>(),
-                                                            sphi.data<T>(),
-                                                            cost,
-                                                            scg.data<T>(),
-                                                            sint_norm);
-        ModuleBase::vector_add_vector_op<T, Device, Real>()(this->n_basis_,
-                                                            hphi.data<T>(),
-                                                            hphi.data<T>(),
-                                                            cost,
-                                                            pphi.data<T>(),
-                                                            sint_norm);
-        return false;
-    }
+    const Real inverse_norm = Real(1) / std::sqrt(norm);
+    ModuleBase::vector_mul_real_op<T, Device>()(this->n_basis_, phi_m.data<T>(), phi_m.data<T>(), inverse_norm);
+    ModuleBase::vector_mul_real_op<T, Device>()(this->n_basis_, sphi.data<T>(), sphi.data<T>(), inverse_norm);
+    ModuleBase::vector_mul_real_op<T, Device>()(this->n_basis_, hphi.data<T>(), hphi.data<T>(), inverse_norm);
+    // Use the Rayleigh quotient of the normalized vector actually returned.
+    eigen = dot_real_op()(this->n_basis_, phi_m.data<T>(), hphi.data<T>());
+    return std::abs(eigen - e0) < ethreshold;
 }
 
 template <typename T, typename Device>
