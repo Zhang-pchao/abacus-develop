@@ -5,6 +5,7 @@
 #include "source_base/timer.h"
 #include "source_basis/module_pw/pw_basis.h"
 
+#include <algorithm>
 #include <cassert>
 #include <functional>
 #include <vector>
@@ -21,17 +22,32 @@ namespace
 double coulomb_sum_single(const std::complex<double>* g1, const std::complex<double>* g2, const ModulePW::PW_Basis& rhopw, const double fac)
 {
     const int ig0 = rhopw.ig_gge0;
-    double sum = 0.0;
+    // Fix the arithmetic order independently of OpenMP's reduction tree and
+    // team size. SCF mixing can amplify last-bit changes in this inner product.
+    const int block_size = 256;
+    const int block_count = rhopw.npw / block_size + (rhopw.npw % block_size != 0);
+    std::vector<double> partial_sums(block_count, 0.0);
 #ifdef _OPENMP
-#pragma omp parallel for reduction(+ : sum)
+#pragma omp parallel for schedule(static)
 #endif
-    for (int ig = 0; ig < rhopw.npw; ++ig)
+    for (int block = 0; block < block_count; ++block)
     {
-        if (ig == ig0)
+        const int begin = block * block_size;
+        const int count = std::min(block_size, rhopw.npw - begin);
+        double partial = 0.0;
+        for (int ig = begin; ig < begin + count; ++ig)
         {
-            continue;
+            if (ig != ig0)
+            {
+                partial += (conj(g1[ig]) * g2[ig]).real() / rhopw.gg[ig];
+            }
         }
-        sum += (conj(g1[ig]) * g2[ig]).real() / rhopw.gg[ig];
+        partial_sums[block] = partial;
+    }
+    double sum = 0.0;
+    for (const double partial : partial_sums)
+    {
+        sum += partial;
     }
     return sum * fac;
 }

@@ -7,8 +7,13 @@
 #include "source_estate/module_charge/chg_drho_detail.h"
 #include "source_estate/module_charge/chg_mix_cfg.h"
 
+#include <cmath>
 #include <complex>
 #include <vector>
+
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 /************************************************
  *  unit test of module_charge/chg_drho_inner.cpp
@@ -132,4 +137,114 @@ TEST_F(ChgDrhoInnerTest, InnerProductRecipRhoNspin1ZeroInput)
         rho1.data(), rho2.data(), pw_basis, cfg, 1.0, 1.0);
 
     EXPECT_NEAR(inner, 0.0, 1e-12);
+}
+
+namespace
+{
+#ifdef _OPENMP
+class OpenMPSettingsGuard
+{
+  public:
+    OpenMPSettingsGuard()
+    {
+        threads_ = omp_get_max_threads();
+        dynamic_ = omp_get_dynamic();
+        omp_set_dynamic(0);
+    }
+    ~OpenMPSettingsGuard()
+    {
+        omp_set_num_threads(threads_);
+        omp_set_dynamic(dynamic_);
+    }
+
+  private:
+    int threads_;
+    int dynamic_;
+};
+#endif
+} // namespace
+
+class ChgDrhoInnerParallelTest : public ChgDrhoInnerTest
+{
+  protected:
+    void SetUp() override
+    {
+        pw_basis.initgrids(16, ModuleBase::Matrix3(1, 0, 0, 0, 1, 0, 0, 0, 1), 20);
+        pw_basis.initparameters(false, 20);
+        pw_basis.setuptransform();
+        pw_basis.collect_local_pw();
+    }
+};
+
+TEST_F(ChgDrhoInnerParallelTest, ReproducibleNonmagneticInnerProducts)
+{
+    ASSERT_GT(pw_basis.npw, 4096);
+#ifdef _OPENMP
+    OpenMPSettingsGuard restore;
+    const std::vector<int> team_sizes{1, 2, 8};
+#else
+    const std::vector<int> team_sizes{1};
+#endif
+    for (const int nspin : {1, 4})
+    {
+        const MixingConfig cfg = make_cfg(nspin);
+        // Nonzero imaginary parts and unequal operands exercise the full real
+        // complex overlap. A self product also checks the residual norm path.
+        std::vector<std::complex<double>> rho1(nspin * pw_basis.npw);
+        std::vector<std::complex<double>> rho2(nspin * pw_basis.npw);
+        for (int ig = 0; ig < nspin * pw_basis.npw; ++ig)
+        {
+            rho1[ig] = std::complex<double>(1.0 / (1 + ig % 23), -0.3 / (1 + ig % 17));
+            rho2[ig] = std::complex<double>(-0.7 / (1 + ig % 19), 0.2 / (1 + ig % 29));
+        }
+        for (const bool self_product : {false, true})
+        {
+            SCOPED_TRACE(nspin);
+            SCOPED_TRACE(self_product);
+            const auto* second = self_product ? rho1.data() : rho2.data();
+            long double reference = 0.0L;
+            for (int ig = 0; ig < pw_basis.npw; ++ig)
+            {
+                if (ig == pw_basis.ig_gge0)
+                {
+                    continue;
+                }
+                const long double real_product = static_cast<long double>(rho1[ig].real()) * second[ig].real();
+                const long double imag_product = static_cast<long double>(rho1[ig].imag()) * second[ig].imag();
+                reference += (real_product + imag_product) / pw_basis.gg[ig];
+            }
+            reference *= ModuleBase::e2 * ModuleBase::FOUR_PI * 0.5L;
+            const double expected = static_cast<double>(reference);
+            const double tolerance = std::abs(expected) * 1e-12;
+            double first = 0.0;
+            for (const int team_size : team_sizes)
+            {
+#ifdef _OPENMP
+                omp_set_num_threads(team_size);
+                int actual_team = 0;
+#pragma omp parallel
+                {
+#pragma omp single
+                    actual_team = omp_get_num_threads();
+                }
+                ASSERT_EQ(actual_team, team_size);
+#endif
+                SCOPED_TRACE(team_size);
+                for (int repeat = 0; repeat < 16; ++repeat)
+                {
+                    const double rho = module_charge::detail::inner_product_recip_rho(
+                        rho1.data(), second, pw_basis, cfg, 1.0, 1.0);
+                    const double hartree = module_charge::inner_product_recip_hartree(
+                        rho1.data(), second, pw_basis, cfg, 1.0, 1.0);
+                    if (team_size == 1 && repeat == 0)
+                    {
+                        first = rho;
+                    }
+                    EXPECT_NEAR(rho, expected, tolerance);
+                    EXPECT_EQ(rho, first);
+                    EXPECT_EQ(hartree, first);
+                }
+            }
+        }
+    }
 }

@@ -7,6 +7,14 @@ abacus_disable_feature_definitions(__ROCM)
 abacus_disable_feature_definitions(__MLALGO)
 abacus_disable_feature_definitions(_OPENMP)
 
+# This reciprocal-inner-product test needs no MPI and must exercise OpenMP.
+AddTest(
+  TARGET MODULE_CHARGE_drho_inner
+  LIBS base device planewave_serial
+  SOURCES test_chg_drho_inner.cpp ../chg_drho_inner.cpp
+  KEEP_FEATURE_DEFINITIONS _OPENMP
+)
+
 if (ENABLE_MPI)
 
 AddTest(
@@ -60,12 +68,6 @@ AddTest(
   TARGET MODULE_CHARGE_drho
   LIBS parameter planewave_serial base device cell_info
   SOURCES test_chg_drho.cpp ../chg_drho.cpp ../chg_drho_inner.cpp ../charge.cpp ../chg_tools.cpp
-)
-
-AddTest(
-  TARGET MODULE_CHARGE_drho_inner
-  LIBS base device planewave_serial
-  SOURCES test_chg_drho_inner.cpp ../chg_drho_inner.cpp
 )
 
 AddTest(
