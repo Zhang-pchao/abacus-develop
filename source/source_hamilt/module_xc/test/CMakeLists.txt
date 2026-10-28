@@ -1,7 +1,7 @@
 AddTest(
   TARGET MODULE_HAMILT_XCTest_PBE
   LIBS parameter MPI::MPI_CXX Libxc::xc
-  SOURCES test_xc.cpp ../xc_functional.cpp ../xc_lda_wrap.cpp ../xc_gga_wrap.cpp ../xc_gga_corr.cpp ../xc_lda_corr.cpp ../xc_gga_exch.cpp ../xc_lda_exch.cpp ../xc_hcth.cpp
+  SOURCES test_xc.cpp test_xc_gga_wrap.cpp ../xc_functional.cpp ../xc_lda_wrap.cpp ../xc_gga_wrap.cpp ../xc_gga_corr.cpp ../xc_lda_corr.cpp ../xc_gga_exch.cpp ../xc_lda_exch.cpp ../xc_hcth.cpp
   ../libxc_gga_wrap.cpp ../libxc_setup.cpp
 )
 

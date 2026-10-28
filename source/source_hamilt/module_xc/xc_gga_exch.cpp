@@ -107,34 +107,24 @@ void XC_Functional::pbex(
     const double third = 1.0 / 3.0;
     const double c1 = 0.750 / ModuleBase::PI;
     const double c2 = 3.0936677262801360;
-    const double c5 = 4.0 * third;
-    // parameters of the functional
-    double k[3] = { 0.8040, 1.24500, 0.8040 };
-    const double mu[3] = {0.2195149727645171, 0.2195149727645171, 0.12345679012345679} ;//modified by zhengdy, to ensure the same parameters with another dft code.
+    // Parameters for PBE, revPBE and PBEsol.
+    const double k[3] = {0.8040, 1.24500, 0.8040};
+    const double mu[3] = {0.2195149727645171, 0.2195149727645171, 0.12345679012345679};
 
-    const double agrho = sqrt(grho);
     const double kf = c2 * pow(rho, third);
-    const double dsg = 0.50 / kf;
-    const double s1 = agrho * dsg / rho;
-    const double s2 = s1 * s1;
-    const double ds = - c5 * s1;
+    const double reduced_gradient_squared = grho / (4.0 * kf * kf * rho * rho);
+    const double enhancement_argument = mu[iflag] * reduced_gradient_squared / k[iflag];
+    const double denominator = 1.0 + enhancement_argument;
+    const double denominator_squared = denominator * denominator;
+    // k - k/(1+x) loses the gradient correction as x tends to zero.
+    const double enhancement = k[iflag] * enhancement_argument / denominator;
+    const double uniform_exchange = -c1 * kf;
 
-    // Energy
-    const double f1 = s2 * mu[iflag] / k [iflag];
-    const double f2 = 1.0 + f1;
-    const double f3 = k [iflag] / f2;
-    const double fx = k [iflag] - f3;
-    const double exunif = - c1 * kf;
-    sx = exunif * fx;
-
-    // Potential
-    const double dxunif = exunif * third;
-    const double dfx1 = f2 * f2;
-    const double dfx = 2.0 * mu[iflag] * s1 / dfx1;
-
-    v1x = sx + dxunif * fx + exunif * dfx * ds;
-    v2x = exunif * dfx * dsg / agrho;
-    sx = sx * rho;
+    sx = rho * uniform_exchange * enhancement;
+    v1x = uniform_exchange * (4.0 * third * enhancement
+                              - 8.0 * third * mu[iflag] * reduced_gradient_squared / denominator_squared);
+    // Analytic 2*d(sx)/d(grho); no division by sqrt(grho) at zero gradient.
+    v2x = uniform_exchange * mu[iflag] / (2.0 * kf * kf * rho * denominator_squared);
 
     return;
 }

@@ -52,9 +52,26 @@ void XC_Functional::gcxc(
     v1xc = 0.0;
     v2xc = 0.0;
 
-    if (rho <= small || grho < smallg)
+    if (rho <= small || grho < 0.0)
     {
         return;
+    }
+
+    if (grho < smallg)
+    {
+        // Remove the cutoff only when every component has a verified finite
+        // limit. Mixed functionals such as WC exchange plus PBE correlation
+        // retain their existing cutoff as a whole.
+        for (int id : func_id)
+        {
+            const bool has_small_gradient_limit = id == XC_GGA_X_PBE || id == XC_GGA_X_PBE_R
+                                                  || id == XC_GGA_X_PBE_SOL || id == XC_GGA_C_PBE
+                                                  || id == XC_GGA_C_PBE_SOL || id == XC_HYB_GGA_XC_PBEH;
+            if (!has_small_gradient_limit)
+            {
+                return;
+            }
+        }
     }
 
     for(int id : func_id)

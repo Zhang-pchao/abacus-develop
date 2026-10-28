@@ -148,19 +148,22 @@ void XC_Functional::pbec(
 
     const double kf = xkf / rs;
     const double ks = xks * sqrt(kf);
-    const double t = sqrt(grho) / (2.0 * ks * rho);
+    const double t_squared = grho / (4.0 * ks * ks * rho * rho);
     const double expe = exp(- ec / ga);
-    const double af = be[iflag] / ga * (1.0 / (expe - 1.0));
+    const double af = be[iflag] / (ga * std::expm1(-ec / ga));
     const double bf = expe * (vc - ec);
-    const double y = af * t * t;
+    const double y = af * t_squared;
     const double xy = (1.0 + y) / (1.0 + y + y * y);
 
     const double x = 1.0 + y + y * y;
     const double qy = y * y * (2.0 + y) / (x * x);
-    const double s1 = 1.0 + be[iflag] / ga * t * t * xy;
-    const double h0 = ga * log(s1);
-    const double dh0 = be[iflag] * t * t / s1 * (- 7.0 / 3.0 * xy - qy * (af * bf /be[iflag] - 7.0 / 3.0));
-    const double ddh0 = be[iflag] / (2.0 * ks * ks * rho) * (xy - qy) / s1;
+    // xy - qy = (1 + 2*y)/(1 + y + y*y)^2, without large-y cancellation.
+    const double gradient_response = (1.0 + 2.0 * y) / (x * x);
+    const double gradient_argument = be[iflag] / ga * t_squared * xy;
+    const double s1 = 1.0 + gradient_argument;
+    const double h0 = ga * std::log1p(gradient_argument);
+    const double dh0 = be[iflag] * t_squared / s1 * (-7.0 / 3.0 * gradient_response - qy * af * bf / be[iflag]);
+    const double ddh0 = be[iflag] / (2.0 * ks * ks * rho) * gradient_response / s1;
 
     sc = rho * h0;
     v1c = h0 + dh0;
